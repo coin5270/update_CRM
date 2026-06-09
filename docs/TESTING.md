@@ -41,7 +41,16 @@ curl http://localhost:8000/api/bootstrap
 Expected:
 
 - health returns `status: ok`
+- health returns `database.status: ok`
 - bootstrap returns CRM data collections
+
+For AWS, use the deployed backend URL instead:
+
+```bash
+curl https://<backend-domain>/health
+```
+
+If `database.status` is not `ok`, the backend is running but is not connected correctly to PostgreSQL/RDS.
 
 ## 3. Login Tests
 
@@ -76,6 +85,16 @@ curl -X PUT http://localhost:8000/api/partners/test-partner-001 \
 
 5. Refresh Business Partners.
 6. Confirm `Test Partner S.A.` appears and `tax_id` maps to Tax ID in the CRM UI.
+
+For AWS persistence testing:
+
+1. Create a Business Partner named `AWS Persistence Test Partner`.
+2. Refresh the browser.
+3. Restart the backend service.
+4. Refresh the browser again.
+5. Confirm the partner is still visible.
+
+If the partner disappears, the browser was using local fallback data or the backend was not writing to PostgreSQL/RDS.
 
 ## 5. Follow-up Flow Test
 

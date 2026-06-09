@@ -74,7 +74,6 @@ const MESSAGES = {
     closed: "Closed",
     generatedOn: "Generated on",
     client: "Client",
-    openTask: "Open task",
   },
   es: {
     pageTitle: "Informe de trazabilidad comercial",
@@ -122,7 +121,6 @@ const MESSAGES = {
     closed: "Cerrado",
     generatedOn: "Generado el",
     client: "Cliente",
-    openTask: "Abrir tarea",
   },
 } as const;
 

@@ -118,15 +118,29 @@ function shouldUseSeedFallback(): boolean {
   return sync?.status !== "connected";
 }
 
+function markRemoteWriteFailure(resource: string, error: unknown) {
+  const message = error instanceof Error ? error.message : "Remote save failed";
+  write(KEYS.apiSync, {
+    status: "offline",
+    lastSyncAt: new Date().toISOString(),
+    message: `Remote ${resource} save failed: ${message}`,
+  });
+  console.warn(`CRM remote ${resource} save failed`, error);
+}
+
 function persist<T extends { id: string }>(
   resource: Parameters<typeof upsertResource<T>>[0],
   item: T,
 ) {
-  void upsertResource(resource, item, store.getUser()?.token).catch(() => undefined);
+  void upsertResource(resource, item, store.getUser()?.token).catch((error) =>
+    markRemoteWriteFailure(String(resource), error),
+  );
 }
 
 function removeRemote(resource: Parameters<typeof deleteResource>[0], id: string) {
-  void deleteResource(resource, id, store.getUser()?.token).catch(() => undefined);
+  void deleteResource(resource, id, store.getUser()?.token).catch((error) =>
+    markRemoteWriteFailure(String(resource), error),
+  );
 }
 
 function computeOperationsAnalytics(

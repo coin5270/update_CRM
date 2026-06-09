@@ -29,6 +29,22 @@ VITE_CRM_TENANT_KEY=uy-main
 
 For production, replace the hostnames with the deployed frontend and backend URLs.
 
+For AWS, `CRM_DATABASE_URL` should point to the AWS PostgreSQL/RDS database, not to `127.0.0.1`, unless PostgreSQL is running on the same EC2 instance as the backend.
+
+Example RDS-style backend values:
+
+```bash
+CRM_DATABASE_URL=postgresql://<user>:<password>@<rds-endpoint>:5432/salescrm
+CRM_FRONTEND_ORIGINS=https://<frontend-domain>
+```
+
+Example frontend values:
+
+```bash
+VITE_CRM_API_URL=https://<backend-domain>
+VITE_CRM_TENANT_KEY=uy-main
+```
+
 The CRM supports one shared frontend for users from multiple tenant companies. The frontend can keep one default tenant key for public/bootstrap context:
 
 ```bash
@@ -219,6 +235,7 @@ pg_restore -h 127.0.0.1 -U postgres -d salescrm --clean --if-exists salescrm-bef
 ## Verification Checklist
 
 - `GET /health` returns `status: ok`.
+- `GET /health` returns `database.status: ok`.
 - Login works with `maria@salescrm.app` and `juan@salescrm.app`.
 - Spanish/English toggle works.
 - Business Partners list renders.
@@ -231,6 +248,58 @@ pg_restore -h 127.0.0.1 -U postgres -d salescrm --clean --if-exists salescrm-bef
 - History shows traceability for clients, quotes, tasks, and bookings.
 - Bookings detail page loads.
 - Integration backup/export works for users with permission.
+
+## AWS Persistence Smoke Test
+
+Use this after uploading to AWS to confirm that data is really saving to PostgreSQL/RDS and not only appearing in the browser.
+
+1. Open the AWS backend health endpoint.
+
+```bash
+curl https://<backend-domain>/health
+```
+
+Expected:
+
+```json
+"database": {
+  "status": "ok"
+}
+```
+
+2. Log in through the frontend.
+
+3. Create a clearly named test Business Partner, for example:
+
+```text
+AWS Persistence Test Partner
+```
+
+4. Refresh the browser.
+
+5. Confirm the partner is still visible.
+
+6. Restart the backend service.
+
+7. Refresh the frontend again.
+
+8. Confirm the partner is still visible after backend restart.
+
+9. If database shell access is available, verify directly:
+
+```sql
+SELECT payload
+FROM crm_partners
+WHERE payload->>'company_name' = 'AWS Persistence Test Partner';
+```
+
+If the record disappears after refresh or restart, check:
+
+- `CRM_DATABASE_URL` points to the AWS PostgreSQL/RDS database
+- `/health` shows `database.status: ok`
+- the frontend `VITE_CRM_API_URL` points to the AWS backend
+- the user is logged in before creating records
+- the browser does not show a backend sync/offline warning
 
 ## Seed Data and Test Credentials
 
