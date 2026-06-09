@@ -1,0 +1,146 @@
+Tecnologías objetivo: Backend en Python + Frontend en React
+Consulte el documento adjunto para obtener información adicional.
+
+1. Objetivo general del CRM
+Desarrollar un CRM de ventas integrado mediante API que permita gestionar socios comerciales, clientes, contactos, tareas de ventas, seguimiento de presupuestos y actividades de ventas desde una interfaz React, utilizando un backend en Python y conectándose a la misma base de datos mediante API.
+
+2. Concepto general
+El CRM debe funcionar como una capa de ventas y relaciones sobre la información existente en otro sistema de gestión. El sistema debe permitir centralizar la información de ventas, los contactos, el seguimiento y las tareas relacionadas con los clientes y las operaciones.
+
+3. Gestión de socios comerciales
+El sistema debe permitir gestionar entidades comerciales con múltiples roles simultáneos bajo un mismo tipo de rol. Por ejemplo, un cliente puede ser a la vez cliente y proveedor. Además:
+Cliente
+Proveedor
+Mixto
+Otro
+
+Una misma entidad puede tener más de un rol comercial activo simultáneamente. 4. Datos del registro comercial
+• Nombre de la empresa
+• Nombre comercial
+• NIF/Documento nacional/Pasaporte
+• País
+• Ciudad/Estado/Provincia
+• Dirección
+• Código postal
+• Números de teléfono
+• Direcciones de correo electrónico
+• Sitio web
+• Idioma
+• Estado de la empresa
+• Vendedor asignado
+• Gerente
+• Notas
+• Datos bancarios
+• Sucursales y almacenes
+• Texto personalizado
+• Contactos relacionados
+5. Pantalla del registro comercial
+El registro comercial del cliente debe estar dividido en pestañas o módulos funcionales.
+
+• General
+• Contactos
+• Administración
+• Cargos relacionados
+• Tareas
+• Presupuestos
+• Transacciones
+• Datos bancarios
+• Notas internas
+• Perfil del cliente
+• Sucursales/Almacenes
+6. Gestión de tareas de ventas
+El CRM debe incluir un módulo de tareas de ventas asociado a clientes, contactos, presupuestos y transacciones.
+
+• Cliente
+• Contacto
+• Correo electrónico
+• Teléfono
+• Asunto
+• Comentario
+• Usuario responsable
+• Vendedor
+• Fecha de creación
+• Fecha de vencimiento
+• Hora de vencimiento
+• Prioridad
+• Estado
+• Método de contacto (Llamada/WhatsApp/Correo electrónico/Redes sociales)
+• Cotización relacionada
+• Transacción relacionada
+7. Acciones de tareas
+• Crear tarea
+• Editar tarea
+• Completar tarea
+• Filtrar tareas
+• Ver tareas pendientes
+• Ver tareas vencidas
+• Ver tareas completadas
+• Filtrar por prioridad
+• Filtrar por vendedor
+• Filtrar por usuario
+• Abrir cotización asociada
+• Asociar transacción
+• Enviar correos electrónicos relacionados
+8. Bandeja de entrada centralizada de tareas
+Debe existir una pantalla centralizada para el seguimiento de las tareas de ventas.
+
+• Socio comercial
+• Fecha de vencimiento
+• Hora de vencimiento
+• Días de retraso
+• Estado
+• Prioridad
+• Tema
+• Cotización
+• Estado de la cotización
+• Transacción
+• Usuario
+• Vendedor
+9. Integración con cotizaciones
+• Asociar tareas con cotizaciones
+• Abrir cotización desde una tarea
+• Ver el estado de venta de la cotización
+• Detectar cotizaciones vencidas
+• Generar tareas automáticas según la fecha de vencimiento
+• Registrar el resultado de la venta
+• Registrar las oportunidades perdidas o ganadas
+10. Integración con operaciones
+El CRM debe acceder a la información operativa existente a través de la API.
+
+• Operaciones activas
+• Historial operativo
+• Última operación
+• Número de operaciones
+• Operaciones por tráfico
+• Ratio cotización-operación
+12. Arquitectura recomendada
+Frontend React:
+• Panel de ventas
+• Pantallas responsivas
+• Filtros avanzados
+• Permisos de usuario
+• Perfil de cliente moderno
+• Gestión de tareas
+Backend Python:
+• API REST
+• Autenticación integrada
+• Permisos y seguridad
+• Integración con SDC Cargo
+• Servicios de tareas automatizadas
+• Motor de alertas
+13. Base de datos recomendada
+• crm_tasks
+• crm_opportunities
+• crm_pipeline
+• crm_interactions
+• crm_customer_history
+• crm_alerts
+• crm_reminders
+14. Recomendaciones técnicas
+• Utilizar API para la integración
+• Separar la lógica del CRM de la lógica operativa
+• Los permisos de usuario se centralizan en el software de gestión y se comunican mediante API.
+
+• Diseñar componentes reutilizables en React
+• Preparar una estructura multiusuario
+• Preparar la integración futura con IA y automatización
