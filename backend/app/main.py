@@ -120,17 +120,20 @@ def upsert_user(
     item: UserAccount,
     user: dict[str, Any] = Depends(_require_permission("users:write")),
 ) -> object:
-    existing = next(
-        (record for record in repository.collection("users") if record.get("id") == item_id),
-        {},
-    )
-    payload = {
-        **existing,
-        **item.model_dump(mode="json"),
-        "id": item_id,
-        "password_hash": existing.get("password_hash") or auth.password_hash("demo"),
-    }
-    return auth.public_user(repository.upsert("users", payload))
+    target_tenant = item.tenant_key or repository.DEFAULT_TENANT_KEY
+    with repository.tenant_scope(target_tenant):
+        existing = next(
+            (record for record in repository.collection("users") if record.get("id") == item_id),
+            {},
+        )
+        payload = {
+            **existing,
+            **item.model_dump(mode="json"),
+            "id": item_id,
+            "tenant_key": target_tenant,
+            "password_hash": existing.get("password_hash") or auth.password_hash("demo"),
+        }
+        return auth.public_user(repository.upsert("users", payload))
 
 
 @app.get("/api/bootstrap")

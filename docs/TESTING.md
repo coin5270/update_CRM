@@ -96,7 +96,184 @@ For AWS persistence testing:
 
 If the partner disappears, the browser was using local fallback data or the backend was not writing to PostgreSQL/RDS.
 
-## 5. Follow-up Flow Test
+## 5. Multi-company Tenant Isolation Test
+
+Use this test to confirm that users from one company cannot see or edit another company's CRM data.
+
+### 5.1 Get an admin token
+
+Login as Maria and copy the returned `token`.
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"maria@salescrm.app","password":"demo"}'
+```
+
+For the commands below, replace:
+
+```text
+<ADMIN_TOKEN>
+```
+
+with Maria's token.
+
+### 5.2 Create two users in two different tenant companies
+
+Create a Company A user:
+
+```bash
+curl -X PUT http://localhost:8000/api/users/u-company-a \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "u-company-a",
+    "name": "Company A User",
+    "email": "company-a@salescrm.app",
+    "role": "sales_manager",
+    "tenant_key": "company-a-main",
+    "permissions": ["partners:read", "partners:write", "tasks:read", "tasks:write"]
+  }'
+```
+
+Create a Company B user:
+
+```bash
+curl -X PUT http://localhost:8000/api/users/u-company-b \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "u-company-b",
+    "name": "Company B User",
+    "email": "company-b@salescrm.app",
+    "role": "sales_manager",
+    "tenant_key": "company-b-main",
+    "permissions": ["partners:read", "partners:write", "tasks:read", "tasks:write"]
+  }'
+```
+
+Both users use the default password:
+
+```text
+demo
+```
+
+### 5.3 Login as each company user
+
+Login as Company A:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"company-a@salescrm.app","password":"demo"}'
+```
+
+Copy the token as:
+
+```text
+<COMPANY_A_TOKEN>
+```
+
+Login as Company B:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"company-b@salescrm.app","password":"demo"}'
+```
+
+Copy the token as:
+
+```text
+<COMPANY_B_TOKEN>
+```
+
+### 5.4 Create one Business Partner per tenant
+
+Create a Company A partner:
+
+```bash
+curl -X PUT http://localhost:8000/api/partners/company-a-partner \
+  -H "Authorization: Bearer <COMPANY_A_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "company-a-partner",
+    "company_name": "Company A Private Partner",
+    "roles": ["customer"],
+    "status": "active",
+    "salesperson": "Company A User",
+    "country": "Uruguay",
+    "tax_id": "A-PRIVATE-001"
+  }'
+```
+
+Create a Company B partner:
+
+```bash
+curl -X PUT http://localhost:8000/api/partners/company-b-partner \
+  -H "Authorization: Bearer <COMPANY_B_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "company-b-partner",
+    "company_name": "Company B Private Partner",
+    "roles": ["customer"],
+    "status": "active",
+    "salesperson": "Company B User",
+    "country": "Uruguay",
+    "tax_id": "B-PRIVATE-001"
+  }'
+```
+
+### 5.5 Confirm each user only sees their own company data
+
+Company A should see Company A data:
+
+```bash
+curl http://localhost:8000/api/bootstrap \
+  -H "Authorization: Bearer <COMPANY_A_TOKEN>" | grep "Company A Private Partner"
+```
+
+Company A should not see Company B data:
+
+```bash
+curl http://localhost:8000/api/bootstrap \
+  -H "Authorization: Bearer <COMPANY_A_TOKEN>" | grep "Company B Private Partner"
+```
+
+Expected: no output.
+
+Company B should see Company B data:
+
+```bash
+curl http://localhost:8000/api/bootstrap \
+  -H "Authorization: Bearer <COMPANY_B_TOKEN>" | grep "Company B Private Partner"
+```
+
+Company B should not see Company A data:
+
+```bash
+curl http://localhost:8000/api/bootstrap \
+  -H "Authorization: Bearer <COMPANY_B_TOKEN>" | grep "Company A Private Partner"
+```
+
+Expected: no output.
+
+### 5.6 Confirm the frontend behavior
+
+1. Open the same frontend URL.
+2. Login as `company-a@salescrm.app`.
+3. Open Business Partners.
+4. Confirm `Company A Private Partner` is visible.
+5. Confirm `Company B Private Partner` is not visible.
+6. Logout.
+7. Login as `company-b@salescrm.app`.
+8. Open Business Partners.
+9. Confirm `Company B Private Partner` is visible.
+10. Confirm `Company A Private Partner` is not visible.
+
+This proves that one shared frontend can serve multiple companies while authenticated CRM data remains isolated by tenant.
+
+## 6. Follow-up Flow Test
 
 1. Login as Maria.
 2. Open Follow-ups.
@@ -109,7 +286,7 @@ If the partner disappears, the browser was using local fallback data or the back
 9. Set a next contact date.
 10. Mark the task completed.
 
-## 6. Follow-up Report Test
+## 7. Follow-up Report Test
 
 1. Open Follow-up Report.
 2. Switch language to Spanish.
@@ -122,7 +299,7 @@ If the partner disappears, the browser was using local fallback data or the back
 9. Export CSV.
 10. Use Print / PDF and confirm the print preview is populated.
 
-## 7. Traceability Test
+## 8. Traceability Test
 
 1. Open Sales Activity.
 2. Confirm the follow-up note appears.
@@ -131,7 +308,7 @@ If the partner disappears, the browser was using local fallback data or the back
 5. Open a Business Partner detail page.
 6. Confirm related tasks, quotes, messages, history, and profile data are visible.
 
-## 8. Booking Test
+## 9. Booking Test
 
 1. Open Bookings.
 2. Click New booking.
@@ -139,7 +316,7 @@ If the partner disappears, the browser was using local fallback data or the back
 4. Open the booking detail page.
 5. Confirm trace shortcuts and recent history are visible.
 
-## 9. Report Export Expectations
+## 10. Report Export Expectations
 
 The Follow-up Report CSV includes:
 
@@ -162,7 +339,7 @@ The Print / PDF output should include:
 - commentary
 - status
 
-## 10. Permission Test
+## 11. Permission Test
 
 1. Login as a user without a specific write permission.
 2. Attempt the restricted action.

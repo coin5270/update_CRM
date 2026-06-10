@@ -196,19 +196,20 @@ If an update includes a new database dump, restore the dump before restarting th
 1. Login with `maria@salescrm.app` and password `demo`.
 2. Switch language to Spanish from the header.
 3. Open `Business Partners` and confirm partners are visible.
-4. Open `Follow-ups`, assign or update a task, and add a follow-up note.
-5. Login with `juan@salescrm.app` and confirm the assigned task is visible.
-6. Open `Follow-up Report`.
-7. Filter by Business Partner.
-8. Filter by User.
-9. Filter by Status.
-10. Filter date range by `Next contact date`.
-11. Change date type to `Comment date` and filter again.
-12. Export CSV.
-13. Use `Print / PDF`.
-14. Open `Sales Activity` and confirm follow-up events appear.
-15. Open `History` and confirm client/quote/task traceability is visible.
-16. Open `Bookings` and confirm booking details load.
+4. Run the multi-company tenant isolation test in `docs/TESTING.md`.
+5. Open `Follow-ups`, assign or update a task, and add a follow-up note.
+6. Login with `juan@salescrm.app` and confirm the assigned task is visible.
+7. Open `Follow-up Report`.
+8. Filter by Business Partner.
+9. Filter by User.
+10. Filter by Status.
+11. Filter date range by `Next contact date`.
+12. Change date type to `Comment date` and filter again.
+13. Export CSV.
+14. Use `Print / PDF`.
+15. Open `Sales Activity` and confirm follow-up events appear.
+16. Open `History` and confirm client/quote/task traceability is visible.
+17. Open `Bookings` and confirm booking details load.
 
 ## Useful Commands
 

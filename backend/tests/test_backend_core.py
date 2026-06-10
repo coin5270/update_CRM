@@ -67,6 +67,37 @@ def test_login_finds_user_from_another_tenant(isolated_repository):
         assert auth.user_for_token(session["id"])["email"] == other_user["email"]
 
 
+def test_user_upsert_stores_user_under_target_tenant(isolated_repository):
+    repository = isolated_repository
+    admin = auth.authenticate("maria@salescrm.app", "demo")
+    assert admin is not None
+
+    created = main.upsert_user(
+        "u-company-c",
+        main.UserAccount(
+            id="u-company-c",
+            name="Company C User",
+            email="company-c@salescrm.app",
+            role="sales",
+            tenant_key="company-c-main",
+            permissions=["partners:read", "partners:write"],
+        ),
+        user=admin,
+    )
+    assert created["tenant_key"] == "company-c-main"
+
+    authenticated = auth.authenticate("company-c@salescrm.app", "demo")
+    assert authenticated is not None
+    session = auth.create_session(authenticated)
+    assert auth.tenant_for_token(session["id"]) == "company-c-main"
+    assert auth.user_for_token(session["id"])["email"] == "company-c@salescrm.app"
+
+    with repository.tenant_scope("uy-main"):
+        assert not any(user["id"] == "u-company-c" for user in repository.collection("users"))
+    with repository.tenant_scope("company-c-main"):
+        assert any(user["id"] == "u-company-c" for user in repository.collection("users"))
+
+
 def test_repository_upsert_delete_and_replace_all(isolated_repository):
     repository = isolated_repository
 
