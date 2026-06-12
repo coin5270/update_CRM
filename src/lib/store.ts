@@ -42,6 +42,7 @@ import {
   loginWithApi,
   runAutomationEngine,
   runIntegrationSync,
+  signupWithApi,
   upsertResource,
   type BootstrapData,
   type OperationsAnalytics,
@@ -448,33 +449,23 @@ export const store = {
       ensureSeed();
       return response.user;
     } catch (error) {
-      const normalized = email.trim().toLowerCase();
-      const isDemoUser = normalized === "maria@salescrm.app" || normalized === "juan@salescrm.app";
-      if (password === "demo" && isDemoUser) {
-        const user = this.login(email);
-        const apiError = error instanceof Error ? error.message : "Login failed";
-        write(KEYS.apiSync, {
-          status: "offline",
-          lastSyncAt: new Date().toISOString(),
-          message: `${apiError}. Using local demo login.`,
-        });
-        return user;
-      }
-      if (
-        typeof window !== "undefined" &&
-        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-      ) {
-        const user = this.login(email);
-        const apiError = error instanceof Error ? error.message : "Login failed";
-        write(KEYS.apiSync, {
-          status: "offline",
-          lastSyncAt: new Date().toISOString(),
-          message: `${apiError}. Using local demo login.`,
-        });
-        return user;
-      }
       throw error;
     }
+  },
+  async signup(payload: {
+    name: string;
+    email: string;
+    password: string;
+    tenantKey: string;
+    companyName?: string;
+  }): Promise<User> {
+    const response = await signupWithApi(payload);
+    write(KEYS.user, { ...response.user, token: response.token });
+    if (response.user.tenantKey) {
+      window.localStorage.setItem("crm.tenantKey", response.user.tenantKey);
+    }
+    ensureSeed();
+    return response.user;
   },
   async bootstrapFromApi(): Promise<boolean> {
     if (typeof window === "undefined") return false;

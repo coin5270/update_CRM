@@ -81,12 +81,13 @@ def test_user_upsert_stores_user_under_target_tenant(isolated_repository):
             role="sales",
             tenant_key="company-c-main",
             permissions=["partners:read", "partners:write"],
+            password="companyc123",
         ),
         user=admin,
     )
     assert created["tenant_key"] == "company-c-main"
 
-    authenticated = auth.authenticate("company-c@salescrm.app", "demo")
+    authenticated = auth.authenticate("company-c@salescrm.app", "companyc123")
     assert authenticated is not None
     session = auth.create_session(authenticated)
     assert auth.tenant_for_token(session["id"]) == "company-c-main"
@@ -96,6 +97,64 @@ def test_user_upsert_stores_user_under_target_tenant(isolated_repository):
         assert not any(user["id"] == "u-company-c" for user in repository.collection("users"))
     with repository.tenant_scope("company-c-main"):
         assert any(user["id"] == "u-company-c" for user in repository.collection("users"))
+
+
+def test_duplicate_user_email_is_rejected(isolated_repository):
+    admin = auth.authenticate("maria@salescrm.app", "demo")
+    assert admin is not None
+
+    with pytest.raises(main.HTTPException) as error:
+        main.upsert_user(
+            "u-duplicate-email",
+            main.UserAccount(
+                id="u-duplicate-email",
+                name="Duplicate Maria",
+                email="maria@salescrm.app",
+                role="sales",
+                tenant_key="company-x-main",
+                permissions=["partners:read"],
+                password="duplicate123",
+            ),
+            user=admin,
+        )
+    assert error.value.status_code == 409
+
+
+def test_signup_creates_tenant_user_and_rejects_duplicate_email(isolated_repository):
+    response = main.signup(
+        main.SignupRequest(
+            name="Signup User",
+            email="signup@salescrm.app",
+            password="signup123",
+            tenant_key="signup-main",
+            company_name="Signup Company",
+        )
+    )
+    assert response["token"]
+    assert response["user"]["tenant_key"] == "signup-main"
+    assert auth.authenticate("signup@salescrm.app", "signup123") is not None
+
+    with pytest.raises(main.HTTPException) as error:
+        main.signup(
+            main.SignupRequest(
+                name="Duplicate Signup",
+                email="signup@salescrm.app",
+                password="signup456",
+                tenant_key="signup-other",
+            )
+        )
+    assert error.value.status_code == 409
+
+
+def test_export_removes_password_hashes_and_sessions(isolated_repository):
+    admin = auth.authenticate("maria@salescrm.app", "demo")
+    assert admin is not None
+    auth.create_session(admin)
+
+    exported = main.export_data(user=admin)
+    assert exported["sessions"] == []
+    assert exported["users"]
+    assert all("password_hash" not in user for user in exported["users"])
 
 
 def test_repository_upsert_delete_and_replace_all(isolated_repository):

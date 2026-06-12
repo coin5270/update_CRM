@@ -15,7 +15,7 @@ Start backend:
 ```bash
 source .venv/bin/activate
 export CRM_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/salescrm
-export CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+export CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://82.38.44.28:8082
 uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -56,9 +56,20 @@ If `database.status` is not `ok`, the backend is running but is not connected co
 
 Use password `demo`.
 
+- `superadmin@salescrm.app`
 - `maria@salescrm.app`
 - `juan@salescrm.app`
 - `admin-lite@salescrm.app`
+
+The login screen also has a `Sign up` option. Use it to create a new company tenant and first sales manager user. The sign-up form requires:
+
+- full name
+- email
+- password with at least 8 characters
+- tenant/company key, for example `new-company-main`
+- optional company name
+
+After sign-up, the user is logged into that tenant and should only see data for that company.
 
 ## 4. Business Partner Synchronization Test
 
@@ -132,7 +143,8 @@ curl -X PUT http://localhost:8000/api/users/u-company-a \
     "email": "company-a@salescrm.app",
     "role": "sales_manager",
     "tenant_key": "company-a-main",
-    "permissions": ["partners:read", "partners:write", "tasks:read", "tasks:write"]
+    "permissions": ["partners:read", "partners:write", "tasks:read", "tasks:write"],
+    "password": "companyA123"
   }'
 ```
 
@@ -148,14 +160,9 @@ curl -X PUT http://localhost:8000/api/users/u-company-b \
     "email": "company-b@salescrm.app",
     "role": "sales_manager",
     "tenant_key": "company-b-main",
-    "permissions": ["partners:read", "partners:write", "tasks:read", "tasks:write"]
+    "permissions": ["partners:read", "partners:write", "tasks:read", "tasks:write"],
+    "password": "companyB123"
   }'
-```
-
-Both users use the default password:
-
-```text
-demo
 ```
 
 ### 5.3 Login as each company user
@@ -165,7 +172,7 @@ Login as Company A:
 ```bash
 curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"company-a@salescrm.app","password":"demo"}'
+  -d '{"email":"company-a@salescrm.app","password":"companyA123"}'
 ```
 
 Copy the token as:
@@ -179,7 +186,7 @@ Login as Company B:
 ```bash
 curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"company-b@salescrm.app","password":"demo"}'
+  -d '{"email":"company-b@salescrm.app","password":"companyB123"}'
 ```
 
 Copy the token as:
@@ -261,12 +268,12 @@ Expected: no output.
 ### 5.6 Confirm the frontend behavior
 
 1. Open the same frontend URL.
-2. Login as `company-a@salescrm.app`.
+2. Login as `company-a@salescrm.app` with password `companyA123`.
 3. Open Business Partners.
 4. Confirm `Company A Private Partner` is visible.
 5. Confirm `Company B Private Partner` is not visible.
 6. Logout.
-7. Login as `company-b@salescrm.app`.
+7. Login as `company-b@salescrm.app` with password `companyB123`.
 8. Open Business Partners.
 9. Confirm `Company B Private Partner` is visible.
 10. Confirm `Company A Private Partner` is not visible.

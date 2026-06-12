@@ -12,8 +12,13 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = React.useState("maria@salescrm.app");
-  const [password, setPassword] = React.useState("demo");
+  const [mode, setMode] = React.useState<"signin" | "signup">("signin");
+  const [name, setName] = React.useState("");
+  const [companyName, setCompanyName] = React.useState("");
+  const [tenantKey, setTenantKey] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [passwordConfirm, setPasswordConfirm] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [syncMessage, setSyncMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -26,12 +31,28 @@ function LoginPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
     setLoading(true);
     setError(null);
     setSyncMessage(null);
     try {
-      await store.loginWithPassword(email, password);
+      if (mode === "signup") {
+        if (!name.trim() || !tenantKey.trim()) {
+          throw new Error("Name and tenant/company key are required");
+        }
+        if (password !== passwordConfirm) {
+          throw new Error("Passwords do not match");
+        }
+        await store.signup({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          tenantKey: tenantKey.trim(),
+          companyName: companyName.trim() || undefined,
+        });
+      } else {
+        await store.loginWithPassword(email, password);
+      }
       const synced = await store.bootstrapFromApi();
       if (!synced) {
         setSyncMessage("Backend API unavailable. Using local demo data.");
@@ -52,29 +73,78 @@ function LoginPage() {
           <div className="mb-2 grid size-11 place-content-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-lg shadow-primary/20">
             C
           </div>
-          <CardTitle>Sign in to SalesCRM</CardTitle>
-          <CardDescription>Warm cockpit for cargo sales teams.</CardDescription>
+          <CardTitle>
+            {mode === "signin" ? "Sign in to SalesCRM" : "Create your SalesCRM account"}
+          </CardTitle>
+          <CardDescription>
+            {mode === "signin"
+              ? "Use your company account credentials."
+              : "Create a company tenant and your first manager user."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-1 text-sm">
               <Button
                 type="button"
-                variant="outline"
+                variant={mode === "signin" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setEmail("maria@salescrm.app")}
+                onClick={() => setMode("signin")}
               >
-                Maria Lopez
+                Sign in
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant={mode === "signup" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setEmail("juan@salescrm.app")}
+                onClick={() => setMode("signup")}
               >
-                Juan Smith
+                Sign up
               </Button>
             </div>
+            {mode === "signup" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required={mode === "signup"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Company name</Label>
+                  <Input
+                    id="companyName"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Example Logistics S.A."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tenantKey">Tenant / company key</Label>
+                  <Input
+                    id="tenantKey"
+                    value={tenantKey}
+                    onChange={(e) =>
+                      setTenantKey(
+                        e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9-]/g, "-")
+                          .replace(/-+/g, "-"),
+                      )
+                    }
+                    placeholder="example-main"
+                    required={mode === "signup"}
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Lowercase letters, numbers, and hyphens only. This identifies the company
+                    tenant.
+                  </div>
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -92,12 +162,30 @@ function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={mode === "signup" ? 8 : undefined}
+                required
               />
+              {mode === "signup" && (
+                <div className="text-xs text-muted-foreground">Use at least 8 characters.</div>
+              )}
             </div>
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <Label htmlFor="passwordConfirm">Confirm password</Label>
+                <Input
+                  id="passwordConfirm"
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  minLength={8}
+                  required
+                />
+              </div>
+            )}
             {error && <div className="text-xs text-destructive">{error}</div>}
             {syncMessage && <div className="text-xs text-muted-foreground">{syncMessage}</div>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Connecting..." : "Sign in"}
+              {loading ? "Connecting..." : mode === "signin" ? "Sign in" : "Create account"}
             </Button>
           </form>
         </CardContent>

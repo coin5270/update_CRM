@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,10 +21,13 @@ from app.models import (
     Interaction,
     LoginRequest,
     Operation,
+    PasswordChangeRequest,
     Partner,
     QuoteStatus,
+    ReminderRule,
     SalesPipeline,
     Quote,
+    SignupRequest,
     SalesTask,
     SalesEvent,
     UserAccount,
@@ -80,6 +84,75 @@ def _require_permission(permission: str):
     return dependency
 
 
+def _is_super_admin(user: dict[str, Any] | None) -> bool:
+    return bool(user and (user.get("role") == "super_admin" or "*:write" in user.get("permissions", [])))
+
+
+def _assert_can_modify_existing(collection: str, existing: dict[str, Any], user: dict[str, Any] | None) -> None:
+    if not existing or _is_super_admin(user) or (user or {}).get("role") == "sales_manager":
+        return
+    user_name = (user or {}).get("name")
+    user_email = (user or {}).get("email")
+    owners = {
+        existing.get("salesperson"),
+        existing.get("responsible_user"),
+        existing.get("assigned_to"),
+        existing.get("created_by"),
+        existing.get("manager"),
+        existing.get("actor"),
+    }
+    if user_name in owners or user_email in owners:
+        return
+    if collection == "contacts":
+        partner = next(
+            (item for item in repository.collection("partners") if item.get("id") == existing.get("partner_id")),
+            {},
+        )
+        if user_name in {partner.get("salesperson"), partner.get("manager")}:
+            return
+    raise HTTPException(status_code=403, detail="You can only modify records assigned to you")
+
+
+def _safe_export_payload(data: dict[str, object]) -> dict[str, object]:
+    sanitized = dict(data)
+    users = []
+    for user in data.get("users", []):
+        if isinstance(user, dict):
+            clean = dict(user)
+            clean.pop("password_hash", None)
+            users.append(auth.public_user(clean))
+    sanitized["users"] = users
+    sanitized["sessions"] = []
+    return sanitized
+
+
+def _find_user_by_email(email: str) -> dict[str, Any] | None:
+    normalized = email.lower()
+    return next(
+        (user for user in repository.collection_any_tenant("users") if user.get("email", "").lower() == normalized),
+        None,
+    )
+
+
+def _default_signup_permissions() -> list[str]:
+    return [
+        "partners:read",
+        "partners:write",
+        "contacts:read",
+        "contacts:write",
+        "tasks:read",
+        "tasks:write",
+        "quotes:read",
+        "quotes:write",
+        "operations:read",
+        "interactions:read",
+        "interactions:write",
+        "notifications:read",
+        "history:read",
+        "pipeline:read",
+    ]
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
     return {
@@ -104,6 +177,43 @@ def login(request: LoginRequest) -> dict[str, object]:
     }
 
 
+@app.post("/api/auth/signup")
+def signup(request: SignupRequest) -> dict[str, object]:
+    try:
+        if _find_user_by_email(request.email):
+            raise HTTPException(status_code=409, detail="A user with this email already exists")
+        user_id = f"user-{request.tenant_key}-{int(datetime.now(timezone.utc).timestamp())}"
+        payload = {
+            "id": user_id,
+            "name": request.name,
+            "email": request.email,
+            "role": "sales_manager",
+            "tenant_key": request.tenant_key,
+            "permissions": _default_signup_permissions(),
+            "password_hash": auth.password_hash(request.password),
+        }
+        with repository.tenant_scope(request.tenant_key):
+            user = repository.upsert("users", payload)
+            if request.company_name:
+                repository.upsert(
+                    "partners",
+                    {
+                        "id": f"tenant-company-{request.tenant_key}",
+                        "company_name": request.company_name,
+                        "roles": ["customer"],
+                        "status": "active",
+                        "salesperson": request.name,
+                    },
+                )
+        session = auth.create_session(user)
+        audit.log("signup", "auth", user=user)
+        return {"token": session["id"], "user": auth.public_user(user)}
+    except HTTPException:
+        raise
+    except psycopg.Error as error:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {error}") from error
+
+
 @app.get("/api/auth/me")
 def me(user: dict[str, Any] = Depends(_require_user)) -> dict[str, object]:
     return auth.public_user(user)
@@ -120,20 +230,50 @@ def upsert_user(
     item: UserAccount,
     user: dict[str, Any] = Depends(_require_permission("users:write")),
 ) -> object:
+    if item_id == user.get("id") and not _is_super_admin(user):
+        requested = item.model_dump(mode="json")
+        protected = {"role", "tenant_key", "permissions"}
+        if any(requested.get(field) != user.get(field) for field in protected):
+            raise HTTPException(status_code=403, detail="Users cannot change their own role, tenant, or permissions")
     target_tenant = item.tenant_key or repository.DEFAULT_TENANT_KEY
+    normalized_email = item.email.lower()
+    duplicate = _find_user_by_email(normalized_email)
+    if duplicate and duplicate.get("id") == item_id:
+        duplicate = None
+    if duplicate:
+        raise HTTPException(status_code=409, detail="A user with this email already exists")
     with repository.tenant_scope(target_tenant):
         existing = next(
             (record for record in repository.collection("users") if record.get("id") == item_id),
             {},
         )
+        if not existing and not item.password:
+            raise HTTPException(status_code=400, detail="Password is required when creating a user")
         payload = {
             **existing,
-            **item.model_dump(mode="json"),
+            **{key: value for key, value in item.model_dump(mode="json").items() if key != "password"},
             "id": item_id,
             "tenant_key": target_tenant,
-            "password_hash": existing.get("password_hash") or auth.password_hash("demo"),
+            "password_hash": auth.password_hash(item.password) if item.password else existing.get("password_hash"),
         }
         return auth.public_user(repository.upsert("users", payload))
+
+
+@app.post("/api/users/{item_id}/password")
+def change_user_password(
+    item_id: str,
+    request: PasswordChangeRequest,
+    user: dict[str, Any] = Depends(_require_user),
+) -> dict[str, str]:
+    if item_id != user.get("id") and not _is_super_admin(user):
+        raise HTTPException(status_code=403, detail="Only super admins can change another user's password")
+    existing = next((record for record in repository.collection("users") if record.get("id") == item_id), None)
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+    if item_id == user.get("id") and existing.get("password_hash") != auth.password_hash(request.current_password):
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+    repository.upsert("users", {**existing, "password_hash": auth.password_hash(request.new_password)})
+    return {"status": "password_changed"}
 
 
 @app.get("/api/bootstrap")
@@ -186,7 +326,7 @@ def upsert_pipeline(
 @app.get("/api/admin/export")
 def export_data(user: dict[str, Any] = Depends(_require_permission("integration:read"))) -> dict[str, object]:
     audit.log("export", "admin", user=user)
-    return repository.all_data()
+    return _safe_export_payload(repository.all_data())
 
 
 @app.post("/api/admin/import")
@@ -377,10 +517,10 @@ def list_reminders() -> object:
 @app.put("/api/reminders/{item_id}")
 def upsert_reminder(
     item_id: str,
-    item: dict[str, Any],
+    item: ReminderRule,
     user: dict[str, Any] = Depends(_require_permission("automations:write")),
 ) -> object:
-    return _upsert("reminders", item_id, item, user)
+    return _upsert("reminders", item_id, item.model_dump(mode="json"), user)
 
 
 @app.put("/api/notifications/{item_id}")
@@ -497,6 +637,8 @@ def _upsert(
     user: dict[str, Any] | None = None,
 ) -> object:
     payload = {**item, "id": item_id}
+    existing = next((record for record in repository.collection(collection) if record.get("id") == item_id), {})
+    _assert_can_modify_existing(collection, existing, user)
     try:
         result = repository.upsert(collection, payload)
         audit.log("upsert", collection, user=user, resource_id=item_id)
@@ -510,6 +652,8 @@ def _delete(
     item_id: str,
     user: dict[str, Any] | None = None,
 ) -> dict[str, str]:
+    existing = next((record for record in repository.collection(collection) if record.get("id") == item_id), {})
+    _assert_can_modify_existing(collection, existing, user)
     deleted = repository.delete(collection, item_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Item not found")

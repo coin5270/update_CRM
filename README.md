@@ -44,6 +44,7 @@ All seeded users use the password `demo`.
 
 | User        | Email                     | Purpose                                     |
 | ----------- | ------------------------- | ------------------------------------------- |
+| Super Admin | `superadmin@salescrm.app` | Tenant and system administration            |
 | Maria Lopez | `maria@salescrm.app`      | Sales manager with write permissions        |
 | Juan Smith  | `juan@salescrm.app`       | Sales user for assignment/follow-up testing |
 | Admin Lite  | `admin-lite@salescrm.app` | Admin-style test user                       |

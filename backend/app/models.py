@@ -1,6 +1,8 @@
 from enum import Enum
+from datetime import date, datetime
+import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class StrEnum(str, Enum):
@@ -43,6 +45,49 @@ class QuoteStatus(StrEnum):
     won = "won"
     lost = "lost"
     expired = "expired"
+
+
+class TrafficMode(StrEnum):
+    ocean = "ocean"
+    air = "air"
+    road = "road"
+    rail = "rail"
+    multimodal = "multimodal"
+
+
+class InteractionChannel(StrEnum):
+    email = "email"
+    call = "call"
+    whatsapp = "whatsapp"
+    meeting = "meeting"
+    note = "note"
+
+
+class InteractionDirection(StrEnum):
+    inbound = "inbound"
+    outbound = "outbound"
+    internal = "internal"
+
+
+def _validate_iso_date(value: str | None) -> str | None:
+    if value in (None, ""):
+        return value
+    try:
+        if "T" in value:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        else:
+            date.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError("Date must use YYYY-MM-DD or ISO datetime format") from error
+    return value
+
+
+def _validate_email(value: str | None) -> str | None:
+    if value in (None, ""):
+        return value
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value):
+        raise ValueError("Invalid email format")
+    return value.lower()
 
 
 class PipelineStage(BaseModel):
@@ -90,6 +135,16 @@ class Partner(BaseModel):
     branches: list[dict] = Field(default_factory=list)
     created_at: str | None = None
 
+    @field_validator("created_at")
+    @classmethod
+    def validate_created_at(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
+
+    @field_validator("emails")
+    @classmethod
+    def validate_emails(cls, values: list[str]) -> list[str]:
+        return [_validate_email(value) or value for value in values]
+
 
 class Contact(BaseModel):
     id: str
@@ -101,6 +156,11 @@ class Contact(BaseModel):
     phone: str | None = None
     whatsapp: str | None = None
     notes: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return _validate_email(value)
 
 
 class SalesTask(BaseModel):
@@ -123,6 +183,11 @@ class SalesTask(BaseModel):
     contact_method: str = "call"
     auto_generated: bool = False
 
+    @field_validator("due_date", "created_at")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
+
 
 class Quote(BaseModel):
     id: str
@@ -130,7 +195,7 @@ class Quote(BaseModel):
     partner_id: str
     subject: str
     status: QuoteStatus
-    amount: float
+    amount: float = Field(ge=0)
     currency: str = "USD"
     issue_date: str
     valid_until: str
@@ -141,6 +206,11 @@ class Quote(BaseModel):
     created_at: str | None = None
     reminder_rules: list[dict] = Field(default_factory=list)
 
+    @field_validator("issue_date", "valid_until", "created_at")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
+
 
 class Operation(BaseModel):
     id: str
@@ -148,14 +218,19 @@ class Operation(BaseModel):
     partner_id: str
     quote_id: str | None = None
     status: OperationStatus
-    traffic_mode: str
+    traffic_mode: TrafficMode
     origin: str
     destination: str
     opened_at: str
-    revenue: float
+    revenue: float = Field(ge=0)
     currency: str = "USD"
     closed_at: str | None = None
     assigned_to: str = "Sales User"
+
+    @field_validator("opened_at", "closed_at")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
 
 
 class Interaction(BaseModel):
@@ -164,12 +239,17 @@ class Interaction(BaseModel):
     contact_id: str | None = None
     quote_id: str | None = None
     task_id: str | None = None
-    channel: str
-    direction: str
+    channel: InteractionChannel
+    direction: InteractionDirection
     subject: str
     body: str
     occurred_at: str
     created_by: str
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at(cls, value: str) -> str:
+        return _validate_iso_date(value) or value
 
 
 class CrmNotification(BaseModel):
@@ -185,6 +265,11 @@ class CrmNotification(BaseModel):
     quote_id: str | None = None
     assigned_to: str | None = None
 
+    @field_validator("created_at", "read_at")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
+
 
 class AutomationEvent(BaseModel):
     id: str
@@ -196,6 +281,11 @@ class AutomationEvent(BaseModel):
     next_run_at: str | None = None
     generated_task_id: str | None = None
     generated_notification_id: str | None = None
+
+    @field_validator("last_run_at", "next_run_at")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
 
 
 class CustomerHistoryEvent(BaseModel):
@@ -209,6 +299,11 @@ class CustomerHistoryEvent(BaseModel):
     quote_id: str | None = None
     task_id: str | None = None
     operation_id: str | None = None
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at(cls, value: str) -> str:
+        return _validate_iso_date(value) or value
 
 
 class SalesEvent(BaseModel):
@@ -225,10 +320,20 @@ class SalesEvent(BaseModel):
     occurred_at: str
     actor: str
 
+    @field_validator("next_contact_date", "occurred_at")
+    @classmethod
+    def validate_dates(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
+
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email(value) or value
 
 
 class UserAccount(BaseModel):
@@ -238,6 +343,69 @@ class UserAccount(BaseModel):
     role: str = "sales"
     tenant_key: str = "uy-main"
     permissions: list[str] = Field(default_factory=list)
+    password: str | None = Field(default=None, min_length=8)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email(value) or value
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        allowed = {"super_admin", "sales_manager", "sales", "operations", "viewer"}
+        if value not in allowed:
+            raise ValueError(f"Role must be one of: {', '.join(sorted(allowed))}")
+        return value
+
+
+class SignupRequest(BaseModel):
+    name: str
+    email: str
+    password: str = Field(min_length=8)
+    tenant_key: str
+    company_name: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email(value) or value
+
+    @field_validator("tenant_key")
+    @classmethod
+    def validate_tenant_key(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.match(r"^[a-z0-9][a-z0-9-]{1,62}$", normalized):
+            raise ValueError("Tenant key must use lowercase letters, numbers, and hyphens")
+        return normalized
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class ReminderRule(BaseModel):
+    id: str
+    quote_id: str | None = None
+    task_id: str | None = None
+    name: str
+    trigger: str
+    action: str
+    status: str = "enabled"
+    next_run_at: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in {"enabled", "paused", "completed"}:
+            raise ValueError("Status must be enabled, paused, or completed")
+        return value
+
+    @field_validator("next_run_at")
+    @classmethod
+    def validate_next_run_at(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value)
 
 
 class ApiConnectionStatus(BaseModel):

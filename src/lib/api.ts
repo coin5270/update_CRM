@@ -63,6 +63,14 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface SignupPayload {
+  name: string;
+  email: string;
+  password: string;
+  tenantKey: string;
+  companyName?: string;
+}
+
 export interface AutomationRunResult {
   created_tasks: number;
   created_notifications: number;
@@ -394,6 +402,34 @@ export async function loginWithApi(email: string, password: string): Promise<Log
   });
   if (!response.ok) {
     throw new Error(response.status === 401 ? "Invalid email or password" : "Login failed");
+  }
+  const raw = (await response.json()) as { token: string; user: RawRecord };
+  return {
+    token: raw.token,
+    user: {
+      id: text(raw.user.id),
+      name: text(raw.user.name),
+      email: text(raw.user.email),
+      role: text(raw.user.role, undefined as unknown as string),
+      tenantKey: text(get(raw.user, "tenantKey", "tenant_key"), DEFAULT_TENANT_KEY),
+      permissions: list<string>(raw.user.permissions),
+      token: raw.token,
+    },
+  };
+}
+
+export async function signupWithApi(payload: SignupPayload): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE}/api/auth/signup`, {
+    method: "POST",
+    headers: requestHeaders(undefined, { "Content-Type": "application/json" }),
+    body: JSON.stringify(toApiPayload(payload)),
+  });
+  if (!response.ok) {
+    const detail = await response
+      .json()
+      .then((body) => text((body as RawRecord).detail, "Sign up failed"))
+      .catch(() => "Sign up failed");
+    throw new Error(detail);
   }
   const raw = (await response.json()) as { token: string; user: RawRecord };
   return {

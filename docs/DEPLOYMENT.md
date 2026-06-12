@@ -17,7 +17,7 @@ Backend:
 
 ```bash
 CRM_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/salescrm
-CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://82.38.44.28:8082
 ```
 
 Frontend:
@@ -82,7 +82,7 @@ pip install -r backend/requirements.txt
 
 ```bash
 export CRM_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/salescrm
-export CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+export CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://82.38.44.28:8082
 uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000
 ```
 
@@ -155,7 +155,7 @@ Run backend:
 ```bash
 source .venv/bin/activate
 export CRM_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/salescrm
-export CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+export CRM_FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://82.38.44.28:8082
 uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload
 ```
 
