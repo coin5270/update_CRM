@@ -35,14 +35,18 @@ http://localhost:5173
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/api/bootstrap
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"maria@salescrm.app","password":"demo"}'
+curl http://localhost:8000/api/bootstrap \
+  -H "Authorization: Bearer <TOKEN_FROM_LOGIN>"
 ```
 
 Expected:
 
 - health returns `status: ok`
 - health returns `database.status: ok`
-- bootstrap returns CRM data collections
+- authenticated bootstrap returns CRM data collections for the logged-in user's tenant
 
 For AWS, use the deployed backend URL instead:
 

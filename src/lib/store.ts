@@ -70,6 +70,24 @@ const KEYS = {
   locale: "crm.locale",
 };
 
+const TENANT_CACHE_KEYS = [
+  KEYS.partners,
+  KEYS.contacts,
+  KEYS.tasks,
+  KEYS.quotes,
+  KEYS.notifications,
+  KEYS.operations,
+  KEYS.interactions,
+  KEYS.history,
+  KEYS.salesEvents,
+  KEYS.automations,
+  KEYS.pipeline,
+  KEYS.apiConnections,
+  KEYS.users,
+  KEYS.audit,
+  KEYS.operationsAnalytics,
+];
+
 const DEMO_PERMISSIONS = [
   "partners:read",
   "partners:write",
@@ -127,6 +145,24 @@ function markRemoteWriteFailure(resource: string, error: unknown) {
     message: `Remote ${resource} save failed: ${message}`,
   });
   console.warn(`CRM remote ${resource} save failed`, error);
+}
+
+function clearTenantCache() {
+  if (typeof window === "undefined") return;
+  TENANT_CACHE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+  window.dispatchEvent(new CustomEvent("crm:store-change", { detail: "tenant-cache" }));
+}
+
+function setSessionUser(user: User, token: string) {
+  const previousTenant = read<User | null>(KEYS.user, null)?.tenantKey;
+  const nextUser = { ...user, token };
+  if (previousTenant && user.tenantKey && previousTenant !== user.tenantKey) {
+    clearTenantCache();
+  }
+  write(KEYS.user, nextUser);
+  if (typeof window !== "undefined") {
+    if (user.tenantKey) window.localStorage.setItem("crm.tenantKey", user.tenantKey);
+  }
 }
 
 function persist<T extends { id: string }>(
@@ -442,11 +478,7 @@ export const store = {
   async loginWithPassword(email: string, password: string): Promise<User> {
     try {
       const response = await loginWithApi(email, password);
-      write(KEYS.user, { ...response.user, token: response.token });
-      if (response.user.tenantKey) {
-        window.localStorage.setItem("crm.tenantKey", response.user.tenantKey);
-      }
-      ensureSeed();
+      setSessionUser(response.user, response.token);
       return response.user;
     } catch (error) {
       throw error;
@@ -460,17 +492,14 @@ export const store = {
     companyName?: string;
   }): Promise<User> {
     const response = await signupWithApi(payload);
-    write(KEYS.user, { ...response.user, token: response.token });
-    if (response.user.tenantKey) {
-      window.localStorage.setItem("crm.tenantKey", response.user.tenantKey);
-    }
-    ensureSeed();
+    setSessionUser(response.user, response.token);
     return response.user;
   },
   async bootstrapFromApi(): Promise<boolean> {
     if (typeof window === "undefined") return false;
+    const token = this.getUser()?.token;
     try {
-      const data = await fetchBootstrap();
+      const data = await fetchBootstrap(token);
       this.hydrate(data);
       write(KEYS.apiSync, {
         status: "connected",
@@ -484,18 +513,11 @@ export const store = {
         lastSyncAt: new Date().toISOString(),
         message: error instanceof Error ? error.message : "Unable to reach CRM API",
       });
-      ensureSeed();
+      if (!token) ensureSeed();
       return false;
     }
   },
   hydrate(data: BootstrapData) {
-    const localSalesEvents = this.salesEvents();
-    const mergedSalesEvents = [...localSalesEvents];
-    for (const event of data.salesEvents ?? []) {
-      const index = mergedSalesEvents.findIndex((item) => item.id === event.id);
-      if (index >= 0) mergedSalesEvents[index] = event;
-      else mergedSalesEvents.unshift(event);
-    }
     write(KEYS.partners, data.partners);
     write(KEYS.contacts, data.contacts);
     write(KEYS.tasks, data.tasks);
@@ -504,7 +526,7 @@ export const store = {
     write(KEYS.operations, data.operations);
     write(KEYS.interactions, data.interactions);
     write(KEYS.history, data.history);
-    write(KEYS.salesEvents, mergedSalesEvents);
+    write(KEYS.salesEvents, data.salesEvents ?? []);
     write(KEYS.automations, data.automations);
     write(KEYS.pipeline, data.pipeline);
     write(KEYS.apiConnections, data.apiConnections);
@@ -563,6 +585,7 @@ export const store = {
   },
   logout() {
     if (typeof window === "undefined") return;
+    clearTenantCache();
     window.localStorage.removeItem(KEYS.user);
     window.localStorage.removeItem("crm.tenantKey");
     window.dispatchEvent(new CustomEvent("crm:store-change", { detail: KEYS.user }));

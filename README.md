@@ -100,7 +100,11 @@ To trigger schema creation and seed insertion:
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/api/bootstrap
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"maria@salescrm.app","password":"demo"}'
+curl http://localhost:8000/api/bootstrap \
+  -H "Authorization: Bearer <TOKEN_FROM_LOGIN>"
 ```
 
 The seeded data uses tenant key `uy-main`. If a public request does not send `X-Tenant-Key`, the backend defaults to `uy-main`. After login, authenticated data access uses the tenant stored in the user's session, so the same frontend can serve users from different tenant companies.

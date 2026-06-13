@@ -277,7 +277,7 @@ def change_user_password(
 
 
 @app.get("/api/bootstrap")
-def bootstrap() -> dict[str, object]:
+def bootstrap(user: dict[str, Any] = Depends(_require_user)) -> dict[str, object]:
     return repository.all_data()
 
 

@@ -60,7 +60,9 @@ Response:
 
 ### `GET /api/bootstrap`
 
-Returns the initial CRM dataset:
+Requires `Authorization: Bearer <token>`.
+
+Returns the initial CRM dataset for the authenticated user's tenant:
 
 - partners
 - contacts

@@ -372,8 +372,10 @@ function normalizeApiConnection(raw: RawRecord): ApiConnectionStatus {
   };
 }
 
-export async function fetchBootstrap(): Promise<BootstrapData> {
-  const response = await fetch(`${API_BASE}/api/bootstrap`);
+export async function fetchBootstrap(token?: string): Promise<BootstrapData> {
+  const response = await fetch(`${API_BASE}/api/bootstrap`, {
+    headers: requestHeaders(token),
+  });
   if (!response.ok) throw new Error(`CRM API returned ${response.status}`);
   const raw = (await response.json()) as Record<string, RawRecord[] | undefined>;
   return {
